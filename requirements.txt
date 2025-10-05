@@ -1,0 +1,2 @@
+pyghidra
+ghidra-stubs~=11.2.1
