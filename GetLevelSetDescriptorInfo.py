@@ -11,8 +11,12 @@
 from ghidra.app.decompiler import DecompInterface
 from ghidra.util.task import ConsoleTaskMonitor
 
-import typing
-if typing.TYPE_CHECKING:
+try:
+    from typing import TYPE_CHECKING
+except:
+    TYPE_CHECKING = False
+
+if TYPE_CHECKING:
     from ghidra.ghidra_builtins import *
 
 from GhidraArgumentParser import GhidraArgumentParser

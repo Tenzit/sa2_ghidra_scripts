@@ -9,10 +9,13 @@
 
 from ghidra.program.model.listing import Data
 
-import typing
-if typing.TYPE_CHECKING:
-    from ghidra.ghidra_builtins import *
+try:
+    from typing import TYPE_CHECKING
+except:
+    TYPE_CHECKING = False
 
+if TYPE_CHECKING:
+    from ghidra.ghidra_builtins import *
 
 def recursePrint(data):
     if data.isArray() or data.isStructure():

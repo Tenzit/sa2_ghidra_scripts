@@ -13,8 +13,12 @@
 from ghidra.program.model.data import DataTypeManager, StructureDataType, PointerDataType
 from ghidra.program.database.data import StructureDB, PointerDB
 
-import typing
-if typing.TYPE_CHECKING:
+try:
+    from typing import TYPE_CHECKING
+except:
+    TYPE_CHECKING = False
+
+if TYPE_CHECKING:
     from ghidra.ghidra_builtins import *
 
 from GhidraArgumentParser import GhidraArgumentParser

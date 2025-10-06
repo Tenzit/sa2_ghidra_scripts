@@ -11,8 +11,12 @@ from ghidra.app.decompiler import DecompInterface, DecompileOptions
 from ghidra.util.task import ConsoleTaskMonitor
 from ghidra.app.util.bin import MemoryByteProvider
 
-import typing
-if typing.TYPE_CHECKING:
+try:
+    from typing import TYPE_CHECKING
+except:
+    TYPE_CHECKING = False
+
+if TYPE_CHECKING:
     from ghidra.ghidra_builtins import *
 
 # ---------- helpers ----------
