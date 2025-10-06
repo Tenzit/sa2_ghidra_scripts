@@ -1,7 +1,6 @@
-# Ghidra Python Scripts
+# SA2 Ghidra Scripts
 
-A set of Python scripts for automating and extending Ghidra.  
-Focus areas: function analysis, data/type export, and callgraph utilities.
+A set of Ghidra scripts for automating SA2 decomp stuff
 
 ## Usage
 
