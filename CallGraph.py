@@ -66,10 +66,6 @@ disp = service.getDefaultGraphDisplay(False, monitor)
 graphOpts = ProgramGraphDisplayOptions(CallGraphType(), tool)
 graphOpts.setMaxNodeCount(50000)
 
-#disp.setGraph(jungGraph, graphOpts, "Acyclic graph", False, monitor)
-
-#print(jungGraph)
-
 currFn = getFunctionContaining(currentAddress)
 
 descendants = GraphAlgorithms.getDescendants(noLibCtorGraph, [currFn])
