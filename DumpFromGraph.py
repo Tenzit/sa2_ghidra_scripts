@@ -132,7 +132,7 @@ from ghidra.app.util.exporter import CppExporter
 from ghidra.program.model.data import DataTypeWriter
 from java.io import File, FileWriter # type: ignore
 
-dirBase="C:/Users/Tenzit/Documents/GitHub/sa2_ghidra_scripts"
+dirBase="C:/Users/Tenzit/Documents/GitHub/sa2_ghidra_scripts/output"
 
 fnDtWriter = DataTypeWriter(currentProgram.getDataTypeManager(), FileWriter(f"{dirBase}/fn.h"))
 fnDtWriter.write(list(fnDts), monitor)
