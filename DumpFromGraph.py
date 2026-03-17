@@ -8,22 +8,60 @@
 # For VS Code type checking stuff
 try:
     from typing import TYPE_CHECKING
-except:
+except ImportError:
     TYPE_CHECKING = False
 
 if TYPE_CHECKING:
     from ghidra.ghidra_builtins import *
 
+import importlib
+import logging
+import sys
 from typing import cast
 
-from ghidra.program.model.util import AcyclicCallGraphBuilder
-from ghidra.util.graph import *
+from ghidra.app.decompiler import DecompileOptions, DecompInterface
+from ghidra.app.services import ConsoleService
 from ghidra.graph import DefaultGEdge
 from ghidra.graph.jung import JungDirectedGraph
-from ghidra.program.model.listing import Function
-from ghidra.program.model.address import AddressSet
 from ghidra.program.database import ProgramDB
-from ghidra.app.decompiler import DecompInterface, DecompileOptions
+from ghidra.program.model.data import DataTypeWriter
+from ghidra.program.model.listing import Function
+from ghidra.program.model.pcode import HighFunctionDBUtil
+from ghidra.program.model.symbol import SourceType
+from ghidra.program.model.util import AcyclicCallGraphBuilder
+from ghidra.util.graph import *
+from java.io import FileWriter  # type: ignore
+
+sys.stdout = getState().getTool().getService(
+    ConsoleService
+).getStdOut() # type: ignore
+
+import DumpDatatypes  # noqa: I001
+importlib.reload(sys.modules['DumpDatatypes'])
+from DumpDatatypes import *  # noqa: E402, I001
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.WARNING, force=True, stream=sys.stdout)
+
+def SetupDecompiler(program: ProgramDB) -> DecompInterface:
+    ifc = DecompInterface()
+    ifcOptions = DecompileOptions()
+    ifcOptions.setRespectReadOnly(True)
+    ifcOptions.setEliminateUnreachable(True)
+    ifc.setOptions(ifcOptions)
+    ifc.setSimplificationStyle("decompile")
+    ifc.openProgram(program)
+
+    return ifc
+
+def CommitSignature(function: Function, ifc: DecompInterface):
+    highFunc = ifc.decompileFunction(fn, 0, monitor).getHighFunction()
+    HighFunctionDBUtil.commitParamsToDatabase(
+        highFunc,
+        True,
+        HighFunctionDBUtil.ReturnCommitOption.COMMIT,
+        SourceType.USER_DEFINED
+    )
 
 def GetFunctionsWithTag(program: ProgramDB, tagName: str) -> set[Function]:
     fnMan = program.getFunctionManager()
@@ -59,88 +97,66 @@ while depGraph.hasUnVisitedIndependentValues():
 
 currFn = getFunctionContaining(currentAddress)
 calledFuncs = jungGraph.getSuccessors(currFn)
-print(f"{currFn} successors: {calledFuncs}")
 
-ifc = DecompInterface()
-ifcOptions = DecompileOptions()
-ifcOptions.setRespectReadOnly(True)
-ifcOptions.setEliminateUnreachable(True)
-ifc.setOptions(ifcOptions)
-ifc.setSimplificationStyle("decompile")
-ifc.openProgram(currentProgram)
-
-res = ifc.decompileFunction(currFn, 0, monitor)
-
-#print(f"GetC: {res.getDecompiledFunction().getC()}")
-#print(f"{res.getDecompiledFunction().getSignature()}")
-print(f"{currFn.getSignature()}")
-symbols = res.getHighFunction().getGlobalSymbolMap().getSymbols()
-for sym in symbols:
-    print(f"Is global: {sym.isGlobal()}; {sym.getDataType()} {sym.getName()}")
-
-fnDts = set()
-print("/////////Local symbols//////////")
-for sym in res.getHighFunction().getLocalSymbolMap().getSymbols():
-    print(f"{sym.getDataType()} {sym.getName()}")
-    fnDts.add(sym.getDataType())
-
-print("/////////Global symbols//////////")
-for sym in res.getHighFunction().getGlobalSymbolMap().getSymbols():
-    print(f"{sym.getDataType()} {sym.getName()}")
-    fnDts.add(sym.getDataType())
-
-print("/////////return//////////")
-print(f"{res.getHighFunction().getFunctionPrototype().getReturnType()}")
-fnDts.add(res.getHighFunction().getFunctionPrototype().getReturnType())
+ifc = SetupDecompiler(currentProgram)
 
 libFns = set()
 nonLibFns = set()
 successors = jungGraph.getSuccessors(currFn)
+fn: Function
 for fn in successors:
+    if fn.getSignatureSource() not in (SourceType.USER_DEFINED, SourceType.IMPORTED):
+        logger.info(f"Committing signature for function {fn}")
+        CommitSignature(fn, ifc)
+
     if fn in libraryFns:
         libFns.add(fn)
     else:
         nonLibFns.add(fn)
 
-libDts = set()
-print("/////////Library functions//////////")
-for fn in libFns:
-    decFn = ifc.decompileFunction(fn, 0, monitor)
-    print(f"{decFn.getDecompiledFunction().getSignature()}")
-    libDts.add(decFn.getHighFunction().getFunctionPrototype().getReturnType())
-    proto = decFn.getHighFunction().getFunctionPrototype()
-    for i in range(proto.getNumParams()):
-        print(f"{proto.getParam(i).getDataType()}", end=' ')
-        libDts.add(proto.getParam(i).getDataType())
-    print("")
+logger.info(f"Library functions: {libFns}")
+logger.info(f"Non-library functions: {nonLibFns}")
 
-nonLibDts = set()
-print("/////////Non-library functions//////////")
-for fn in nonLibFns:
-    decFn = ifc.decompileFunction(fn, 0, monitor)
-    print(f"{decFn.getDecompiledFunction().getSignature()}")
-    nonLibDts.add(decFn.getHighFunction().getFunctionPrototype().getReturnType())
-    proto = decFn.getHighFunction().getFunctionPrototype()
-    for i in range(proto.getNumParams()):
-        print(f"{proto.getParam(i).getDataType()}", end=' ')
-        nonLibDts.add(proto.getParam(i).getDataType())
-    print("")
+dtMap = BuildTypeToFuncMap({currFn}, libFns, nonLibFns, ifc, monitor)
 
-#addrSet = AddressSet(currFn.getBody())
-#
-from ghidra.app.util.exporter import CppExporter
-from ghidra.program.model.data import DataTypeWriter
-from java.io import File, FileWriter # type: ignore
+combinedDtMap = defaultdict(set)
+for dt, fns in dtMap.items():
+    reducedFns = set()
+    for fn in fns:
+        if fn in {currFn}:
+            reducedFns.add(currFn.getName())
+        elif fn in libFns:
+            reducedFns.add("library functions")
+        elif fn in nonLibFns:
+            reducedFns.add("non-library functions")
+    combinedDtMap[dt] = reducedFns
+
+combinedDtMap, combinedUniqueDtMap = GetUniqueDTs(combinedDtMap)
+
+fnMap = BuildInvertedMap(dtMap)
+combinedFnMap = BuildInvertedMap(combinedDtMap)
+# test
+for fn, dts in combinedUniqueDtMap.items():
+    logger.info(f"Function {fn} is the only user of:")
+    for dt in dts:
+        logger.info(f"    {dt.getName()}")
+
+for dt, fns in combinedDtMap.items():
+    logger.info(f"DataType {dt.getName()} is used in:")
+    for fn in fns:
+        logger.info(f"    {fn}")
 
 dirBase="C:/Users/Tenzit/Documents/GitHub/sa2_ghidra_scripts/output"
 
-fnDtWriter = DataTypeWriter(currentProgram.getDataTypeManager(), FileWriter(f"{dirBase}/fn.h"))
-fnDtWriter.write(list(fnDts), monitor)
-libDtWriter = DataTypeWriter(currentProgram.getDataTypeManager(), FileWriter(f"{dirBase}/lib.h"))
-libDtWriter.write(list(libDts), monitor)
-nonLibDtWriter = DataTypeWriter(currentProgram.getDataTypeManager(), FileWriter(f"{dirBase}/nonlib.h"))
-nonLibDtWriter.write(list(nonLibDts), monitor)
-
-#exporter = CppExporter(ifcOptions, True, True, False, False, "Tag")
-#
-#exporter.export(File("C:/Users/Tenzit/Documents/GitHub/sa2_ghidra_scripts/test.c"), currentProgram, addrSet, monitor)
+fw = FileWriter(f"{dirBase}/fn.h")
+fnDtWriter = DataTypeWriter(currentProgram.getDataTypeManager(), fw)
+fnDtWriter.write([*combinedFnMap[currFn.getName()], *combinedUniqueDtMap[currFn.getName()]], monitor)
+fw.close() # type: ignore
+fw = FileWriter(f"{dirBase}/lib.h")
+libDtWriter = DataTypeWriter(currentProgram.getDataTypeManager(), fw)
+libDtWriter.write([*combinedFnMap["library functions"], *combinedUniqueDtMap["library functions"]], monitor)
+fw.close() # type: ignore
+fw = FileWriter(f"{dirBase}/nonlib.h")
+nonLibDtWriter = DataTypeWriter(currentProgram.getDataTypeManager(), fw)
+nonLibDtWriter.write([*combinedFnMap["non-library functions"], *combinedUniqueDtMap["non-library functions"]], monitor)
+fw.close() # type: ignore
