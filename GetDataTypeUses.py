@@ -4,14 +4,9 @@
 #@keybinding 
 #@menupath 
 #@toolbar 
-#@runtime Jython
+#@runtime PyGhidra
 
-
-#TODO Add User Code Here
-
-
-from ghidra.program.model.data import DataTypeManager, StructureDataType, PointerDataType
-from ghidra.program.database.data import StructureDB, PointerDB
+from ghidra.program.model.data import Structure, StructureDataType
 
 try:
     from typing import TYPE_CHECKING
@@ -21,8 +16,9 @@ except:
 if TYPE_CHECKING:
     from ghidra.ghidra_builtins import *
 
-from GhidraArgumentParser import GhidraArgumentParser
 from functools import partial
+
+from GhidraArgumentParser import GhidraArgumentParser
 
 parser: GhidraArgumentParser = GhidraArgumentParser()
 parser.add_argument("datatype", type=str, help="Full path of the datatype",
@@ -42,7 +38,7 @@ else:
     for dt in dtm.getAllDataTypes():
         if monitor.isCancelled():
             break
-        if isinstance(dt, (StructureDataType,StructureDB)): # type: ignore
+        if isinstance(dt, (StructureDataType,Structure)): # type: ignore
             # Check if the structure contains the target data type as a component
             for component in dt.getComponents():
                 if component.getDataType() == target_dt:
