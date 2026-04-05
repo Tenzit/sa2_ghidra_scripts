@@ -6,4 +6,5 @@
     "reportMissingModuleSource": "none",
     "reportWildcardImportFromLibrary": "none"
   },
+  "java.configuration.updateBuildConfiguration": "interactive",
 }
