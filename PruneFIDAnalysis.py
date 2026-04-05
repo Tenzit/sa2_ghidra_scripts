@@ -33,6 +33,10 @@ while bmIt.hasNext(): # type: ignore
     fnLabels = symTab.getSymbols(bmFn.getEntryPoint())
     if not bmFn.getTags().contains(libTag):
         bmFn.addTag("LIBRARY")
+        print(f"Checking over function {bmFn}")
+    else:
+        removeMe.append(bm)
+        continue
     allAnalysis = True
     analysisLabelCount = 0
     labelToUse = None
@@ -40,16 +44,16 @@ while bmIt.hasNext(): # type: ignore
 
     for label in fnLabels:
         if label.getSource() == SourceType.USER_DEFINED and label.isPrimary():
-            print(f"{label}: {label.getSource()} {label.isPrimary()} {label.getSymbolType()}")
+            print(f"    {label} :: {label.getSource()} {label.isPrimary()} {label.getSymbolType()}")
             labelToRemove = label
         elif label.getSource() != SourceType.ANALYSIS:
-            print(f"{label}: {label.getSource()} {label.isPrimary()} {label.getSymbolType()}")
+            print(f"    {label} :: {label.getSource()} {label.isPrimary()} {label.getSymbolType()}")
             allAnalysis = False
             break
         else:
             labelToUse = label
             analysisLabelCount = analysisLabelCount + 1
-            print(f"{label}: {label.getSource()} {label.isPrimary()} {label.getSymbolType()}")
+            print(f"    {label} :: {label.getSource()} {label.isPrimary()} {label.getSymbolType()}")
     if labelToRemove is not None:
         if analysisLabelCount == 1 and labelToUse is not None:
             name = labelToUse.getName()
