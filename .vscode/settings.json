@@ -1,5 +1,9 @@
 {
   "python.analysis.typeCheckingMode": "standard",
   "python.analysis.diagnosticMode": "openFilesOnly",
-  "python.analysis.autoImportCompletions": true
+  "python.analysis.autoImportCompletions": true,
+  "python.analysis.diagnosticSeverityOverrides": {
+    "reportMissingModuleSource": "none",
+    "reportWildcardImportFromLibrary": "none"
+  },
 }
