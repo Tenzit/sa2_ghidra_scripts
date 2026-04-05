@@ -38,7 +38,7 @@ sys.stdout = getState().getTool().getService(
 
 import DumpDatatypes  # noqa: I001
 importlib.reload(sys.modules['DumpDatatypes'])
-from DumpDatatypes import *  # noqa: E402, I001
+from DumpDatatypes import *  # pyright: ignore[reportGeneralTypeIssues] # noqa: E402, I001
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.WARNING, force=True, stream=sys.stdout)
